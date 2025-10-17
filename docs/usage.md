@@ -35,7 +35,7 @@ actionlint -ignore 'label ".+" is unknown' -ignore '".+" is potentially untruste
 ```
 
 `-shellcheck`, `-pyflakes`, and `-ruff` specify file paths of executables. Setting empty string to them disables the
-integration. By default, actionlint runs pyflakes. When `-ruff` is set to a non-empty value, actionlint uses Ruff instead.
+integration. By default, actionlint runs pyflakes. When `-ruff` is set to a non-empty value, actionlint uses ruff instead.
 Disabling both integrations makes actionlint much faster since these external linter integrations spawn many processes.
 
 ```sh
