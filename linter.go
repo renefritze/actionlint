@@ -74,6 +74,12 @@ type LinterOptions struct {
 	// file path like "/path/to/ruff", "path/to/ruff". When this value is empty, ruff won't run and
 	// actionlint falls back to pyflakes integration.
 	Ruff string
+	// RuffArgs is list of extra arguments to pass to ruff. These are appended to the ruff command
+	// after the builtin arguments. It's useful to pass flags like --select, --ignore, etc.
+	RuffArgs []string
+	// RuffConfig is a path to ruff configuration file. When set, actionlint will append
+	// `--config <path>` to the ruff arguments.
+	RuffConfig string
 	// IgnorePatterns is list of regular expression to filter errors. The pattern is applied to error
 	// messages. When an error is matched, the error is ignored.
 	IgnorePatterns []string
@@ -107,6 +113,8 @@ type Linter struct {
 	shellcheck     string
 	pyflakes       string
 	ruff           string
+	ruffArgs       []string
+	ruffConfig     string
 	ignorePats     IgnorePatterns
 	stdin          string
 	defaultConfig  *Config
@@ -192,6 +200,8 @@ func NewLinter(out io.Writer, opts *LinterOptions) (*Linter, error) {
 		opts.Shellcheck,
 		opts.Pyflakes,
 		opts.Ruff,
+		opts.RuffArgs,
+		opts.RuffConfig,
 		ignore,
 		stdin,
 		cfg,
@@ -589,6 +599,13 @@ func (l *Linter) check(
 		if l.ruff != "" {
 			r, err := NewRuleRuff(l.ruff, proc)
 			if err == nil {
+				// If extra args or config path are provided, set them on the rule so runRuff will pass them
+				args := make([]string, 0, len(l.ruffArgs)+1)
+				args = append(args, l.ruffArgs...)
+				if l.ruffConfig != "" {
+					args = append(args, "--config", l.ruffConfig)
+				}
+				r.args = args
 				rules = append(rules, r)
 			} else {
 				l.log("Rule \"ruff\" was disabled:", err)
