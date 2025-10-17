@@ -1025,7 +1025,7 @@ of `actionlint` command allows to specify the executable path of pyflakes. Setti
 pyflakes integration explicitly.
 
 When the `-ruff` option is set to a non-empty executable path, actionlint runs [ruff][] instead of pyflakes and reports
-findings with their Ruff rule identifiers (for example `F401`). This is useful if you already rely on Ruff in your Python
+findings with their ruff rule identifiers (for example `F401`). This is useful if you already rely on ruff in your Python
 projects and want consistent diagnostics inside workflow steps.
 
 Since both `${{ }}` expression syntax is invalid as Python, remaining `${{ }}` might confuse the external linter. To avoid
