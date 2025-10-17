@@ -17,7 +17,7 @@ List of checks:
 - [Contextual typing for `needs` object](#check-contextual-needs-object)
 - [Strict type checks for comparison operators](#check-comparison-types)
 - [shellcheck integration for `run:`](#check-shellcheck-integ)
-- [pyflakes integration for `run:`](#check-pyflakes-integ)
+- [pyflakes and Ruff integration for `run:`](#check-pyflakes-integ)
 - [Script injection by potentially untrusted inputs](#untrusted-inputs)
 - [Job dependencies validation](#check-job-deps)
 - [Matrix values](#check-matrix-values)
@@ -960,7 +960,7 @@ On GitHub Actions:
 ```
 
 <a id="check-pyflakes-integ"></a>
-## [pyflakes][] integration for `run:`
+## [pyflakes][] and [ruff][] integration for `run:`
 
 Example input:
 
@@ -1021,11 +1021,15 @@ actionlint runs pyflakes for scripts at `run:` steps in a workflow and reports e
 Python scripts in a workflow by checking `shell: python` at each step and `defaults:` configurations at workflows and jobs.
 
 By default, actionlint checks if `pyflakes` command exists in your system and uses it when found. The `-pyflakes` option
-of `actionlint` command allows to specify the executable path of pyflakes. Setting empty string by `pyflakes=` disables
+of `actionlint` command allows to specify the executable path of pyflakes. Setting empty string by `-pyflakes=` disables
 pyflakes integration explicitly.
 
-Since both `${{ }}` expression syntax is invalid as Python, remaining `${{ }}` might confuse pyflakes. To avoid it,
-actionlint replaces `${{ }}` with underscores. For example `print('${{ matrix.os }}')` is replaced with
+When the `-ruff` option is set to a non-empty executable path, actionlint runs [ruff][] instead of pyflakes and reports
+findings with their Ruff rule identifiers (for example `F401`). This is useful if you already rely on Ruff in your Python
+projects and want consistent diagnostics inside workflow steps.
+
+Since both `${{ }}` expression syntax is invalid as Python, remaining `${{ }}` might confuse the external linter. To avoid
+it, actionlint replaces `${{ }}` with underscores. For example `print('${{ matrix.os }}')` is replaced with
 `print('________________')`.
 
 <a id="untrusted-inputs"></a>
@@ -2947,6 +2951,7 @@ Note that `steps` in Composite action's metadata is not checked at this point. I
 [SC2043]: https://github.com/koalaman/shellcheck/wiki/SC2043
 [shellcheck-env-var]: https://github.com/koalaman/shellcheck/wiki/Integration#environment-variables
 [pyflakes]: https://github.com/PyCQA/pyflakes
+[ruff]: https://github.com/astral-sh/ruff
 [expr-doc]: https://docs.github.com/en/actions/learn-github-actions/expressions
 [contexts-doc]: https://docs.github.com/en/actions/learn-github-actions/contexts
 [funcs-doc]: https://docs.github.com/en/actions/learn-github-actions/expressions#functions

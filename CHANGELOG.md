@@ -1,3 +1,9 @@
+<a id="unreleased"></a>
+# Unreleased
+
+- Add optional Ruff integration for Python `run:` steps. actionlint continues to default to Pyflakes, but setting the new `-ruff` CLI flag switches the Python checker to Ruff and surfaces Ruff rule identifiers in diagnostics.
+
+
 <a id="v1.7.8"></a>
 # [v1.7.8](https://github.com/rhysd/actionlint/releases/tag/v1.7.8) - 2025-10-11
 

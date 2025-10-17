@@ -70,6 +70,10 @@ type LinterOptions struct {
 	// or file path like "/path/to/pyflakes", "path/to/pyflakes". When this value is empty, pyflakes
 	// won't run to check scripts in workflow file.
 	Pyflakes string
+	// Ruff is executable for running ruff external command. It can be command name like "ruff" or
+	// file path like "/path/to/ruff", "path/to/ruff". When this value is empty, ruff won't run and
+	// actionlint falls back to pyflakes integration.
+	Ruff string
 	// IgnorePatterns is list of regular expression to filter errors. The pattern is applied to error
 	// messages. When an error is matched, the error is ignored.
 	IgnorePatterns []string
@@ -102,6 +106,7 @@ type Linter struct {
 	oneline        bool
 	shellcheck     string
 	pyflakes       string
+	ruff           string
 	ignorePats     IgnorePatterns
 	stdin          string
 	defaultConfig  *Config
@@ -186,6 +191,7 @@ func NewLinter(out io.Writer, opts *LinterOptions) (*Linter, error) {
 		opts.Oneline,
 		opts.Shellcheck,
 		opts.Pyflakes,
+		opts.Ruff,
 		ignore,
 		stdin,
 		cfg,
@@ -580,15 +586,34 @@ func (l *Linter) check(
 		} else {
 			l.log("Rule \"shellcheck\" was disabled since shellcheck command name was empty")
 		}
-		if l.pyflakes != "" {
-			r, err := NewRulePyflakes(l.pyflakes, proc)
+		if l.ruff != "" {
+			r, err := NewRuleRuff(l.ruff, proc)
 			if err == nil {
 				rules = append(rules, r)
 			} else {
-				l.log("Rule \"pyflakes\" was disabled:", err)
+				l.log("Rule \"ruff\" was disabled:", err)
+				if l.pyflakes != "" {
+					if rp, perr := NewRulePyflakes(l.pyflakes, proc); perr == nil {
+						rules = append(rules, rp)
+					} else {
+						l.log("Rule \"pyflakes\" was disabled:", perr)
+					}
+				} else {
+					l.log("Rule \"pyflakes\" was disabled since pyflakes command name was empty")
+				}
 			}
 		} else {
-			l.log("Rule \"pyflakes\" was disabled since pyflakes command name was empty")
+			l.log("Rule \"ruff\" was disabled since ruff command name was empty")
+			if l.pyflakes != "" {
+				r, err := NewRulePyflakes(l.pyflakes, proc)
+				if err == nil {
+					rules = append(rules, r)
+				} else {
+					l.log("Rule \"pyflakes\" was disabled:", err)
+				}
+			} else {
+				l.log("Rule \"pyflakes\" was disabled since pyflakes command name was empty")
+			}
 		}
 		if l.onRulesCreated != nil {
 			rules = l.onRulesCreated(rules)

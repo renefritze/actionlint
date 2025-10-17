@@ -78,6 +78,9 @@ with Go template syntax.
   * `-pyflakes` <EXECUTABLE>:
     Command name or file path of "pyflakes" external command. If empty, pyflakes integration will be
     disabled (default "pyflakes")
+  * `-ruff` <EXECUTABLE>:
+    Command name or file path of "ruff" external command. If empty, ruff integration will be disabled.
+    When set, actionlint uses Ruff instead of pyflakes (default "")
 
   * `-shellcheck` <EXECUTABLE>:
     Command name or file path of "shellcheck" external command. If empty, shellcheck integration will
