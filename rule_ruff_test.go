@@ -64,32 +64,30 @@ func TestRuleRuffParseRuffOutputOK(t *testing.T) {
 			input: "this line\nshould be\nignored\n",
 		},
 		{
-			what:  "single error",
-			input: "stdin:1:7: F401 `foo` imported but unused\n",
+			what: "single error",
+			input: "[ { \"path\": \"stdin.py\", \"diagnostics\": [ { \"code\": \"F401\", \"message\": \"`foo` imported but unused\", \"start\": { \"line\": 1, \"column\": 7 }, \"end\": { \"line\": 1, \"column\": 10 } } ] } ]",
 			want: []string{
 				":1:2: ruff reported issue in this script (F401): 1:7: `foo` imported but unused [ruff]",
 			},
 		},
 		{
 			what: "multiple errors",
-			input: "stdin:1:7: F401 `foo` imported but unused\n" +
-				"stdin:2:2: E722 do not use bare 'except'\n",
+			input: "[ { \"path\": \"stdin.py\", \"diagnostics\": [ { \"code\": \"F401\", \"message\": \"`foo` imported but unused\", \"start\": { \"line\": 1, \"column\": 7 }, \"end\": { \"line\": 1, \"column\": 10 } }, { \"code\": \"E722\", \"message\": \"do not use bare 'except'\", \"start\": { \"line\": 2, \"column\": 2 }, \"end\": { \"line\": 2, \"column\": 9 } } ] } ]",
 			want: []string{
 				":1:2: ruff reported issue in this script (F401): 1:7: `foo` imported but unused [ruff]",
 				":1:2: ruff reported issue in this script (E722): 2:2: do not use bare 'except' [ruff]",
 			},
 		},
 		{
-			what:  "fix available marker",
-			input: "stdin:3:5: SIM115 [*] Use contextlib.suppress(KeyError)\n",
+			what: "fix available marker",
+			input: `[ { "path": "stdin.py", "diagnostics": [ { "code": "SIM115", "message": "[*] Use contextlib.suppress(KeyError)", "start": { "line": 3, "column": 5 }, "end": { "line": 3, "column": 10 } } ] } ]`,
 			want: []string{
 				":1:2: ruff reported issue in this script (SIM115): 3:5: [*] Use contextlib.suppress(KeyError) [ruff]",
 			},
 		},
 		{
 			what: "CRLF",
-			input: "stdin:1:7: F401 `foo` imported but unused\r\n" +
-				"stdin:2:1: PLW0602 [*] Universal newline style\r\n",
+			input: "[ { \"path\": \"stdin.py\", \"diagnostics\": [ { \"code\": \"F401\", \"message\": \"`foo` imported but unused\", \"start\": { \"line\": 1, \"column\": 7 }, \"end\": { \"line\": 1, \"column\": 10 } }, { \"code\": \"PLW0602\", \"message\": \"[*] Universal newline style\", \"start\": { \"line\": 2, \"column\": 1 }, \"end\": { \"line\": 2, \"column\": 5 } } ] } ]",
 			want: []string{
 				":1:2: ruff reported issue in this script (F401): 1:7: `foo` imported but unused [ruff]",
 				":1:2: ruff reported issue in this script (PLW0602): 2:1: [*] Universal newline style [ruff]",
@@ -102,12 +100,8 @@ func TestRuleRuffParseRuffOutputOK(t *testing.T) {
 			r := newRuleRuff(&externalCommand{})
 			stdout := []byte(tc.input)
 			pos := &Pos{Line: 1, Col: 2}
-			for len(stdout) > 0 {
-				o, err := r.parseNextError(stdout, pos)
-				if err != nil {
-					t.Fatalf("Parse error %q while reading input %q", err, stdout)
-				}
-				stdout = o
+			if err := r.parseJSONOutput(stdout, pos); err != nil {
+				t.Fatalf("Parse error %q while reading input %q", err, stdout)
 			}
 			have := r.Errs()
 			if len(have) != len(tc.want) {
@@ -131,12 +125,13 @@ func TestRuleRuffParseRuffOutputOK(t *testing.T) {
 
 func TestRuleRuffParseRuffOutputError(t *testing.T) {
 	r := newRuleRuff(&externalCommand{})
-	_, err := r.parseNextError([]byte("stdin:1:7: F401"), &Pos{})
+	stdout := []byte("stdin:1:7: F401")
+	err := r.parseJSONOutput(stdout, &Pos{Line: 1, Col: 1})
 	if err == nil {
 		t.Fatal("Error did not happen")
 	}
 	have := err.Error()
-	want := "error message from ruff"
+	want := "could not parse ruff JSON output"
 	if !strings.Contains(have, want) {
 		t.Fatalf("Error %q does not contain expected message %q", have, want)
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"encoding/json"
 )
 
 // RuleRuff checks Python scripts at 'run:' using Ruff (https://github.com/astral-sh/ruff).
@@ -100,8 +101,9 @@ func (rule *RuleRuff) runRuff(src string, pos *Pos) {
 	src = sanitizeExpressionsInScript(src)
 	rule.Debug("%s: Running %s for Python script:\n%s", pos, rule.cmd.exe, src)
 
-	args := make([]string, 0, len(rule.args)+4)
-	args = append(args, "check", "--stdin-filename", "stdin.py")
+	args := make([]string, 0, len(rule.args)+6)
+	// Use JSON format for stable, machine-parseable output
+	args = append(args, "check", "--stdin-filename", "stdin.py", "--format", "json")
 	args = append(args, rule.args...)
 	args = append(args, "-")
 
@@ -114,74 +116,65 @@ func (rule *RuleRuff) runRuff(src string, pos *Pos) {
 			return nil
 		}
 
-		for len(stdout) > 0 {
-			var parseErr error
-			stdout, parseErr = rule.parseNextError(stdout, pos)
-			if parseErr != nil {
-				return parseErr
-			}
-		}
-		return nil
+		return rule.parseJSONOutput(stdout, pos)
 	})
 }
 
-func (rule *RuleRuff) parseNextError(stdout []byte, pos *Pos) ([]byte, error) {
-	b := stdout
-
-	idx := bytes.IndexByte(b, '\n')
-	var line []byte
-	if idx == -1 {
-		line = bytes.TrimSpace(b)
-		b = nil
-	} else {
-		line = bytes.TrimSpace(b[:idx])
-		b = b[idx+1:]
+// parseJSONOutput parses Ruff JSON output and records errors to the rule.
+func (rule *RuleRuff) parseJSONOutput(stdout []byte, pos *Pos) error {
+	// Ruff emits a JSON array of objects: [{"path":..., "diagnostics":[{...}, ...]}, ...]
+	// If output is empty or not JSON, ignore it (this keeps behaviour robust when non-JSON text is present).
+	tb := bytes.TrimSpace(stdout)
+	if len(tb) == 0 {
+		return nil
+	}
+	// Quick check: if it does not start with '[' or '{', treat as unrelated plain text and ignore.
+	if tb[0] != '[' && tb[0] != '{' {
+		// If it looks like ruff plain-text diagnostics (e.g. starts with "stdin:" or "<stdin>:")
+		// treat it as a parsing failure so caller can learn something went wrong.
+		if bytes.HasPrefix(tb, []byte("stdin:")) || bytes.HasPrefix(tb, []byte("<stdin>:") ) || bytes.Contains(tb, []byte("<stdin>:")) {
+			return fmt.Errorf("could not parse ruff JSON output while checking script at %s: legacy/plain output detected; output: %q", pos, stdout)
+		}
+		// Otherwise ignore unrelated plain text
+		return nil
+	}
+	var entries []struct {
+		Path        string `json:"path"`
+		Diagnostics []struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+			// start/end are objects with "line" and "column" in our expected test payload
+			Start struct {
+				Line   int `json:"line"`
+				Column int `json:"column"`
+			} `json:"start"`
+			End struct {
+				Line   int `json:"line"`
+				Column int `json:"column"`
+			} `json:"end"`
+		} `json:"diagnostics"`
 	}
 
-	if len(line) == 0 {
-		return b, nil
+	dec := json.NewDecoder(bytes.NewReader(stdout))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&entries); err != nil {
+		// If JSON decode fails, include raw output in the error for debugging
+		return fmt.Errorf("could not parse ruff JSON output while checking script at %s: %w; output: %q", pos, err, stdout)
 	}
 
-	s := string(line)
-	if idx == -1 && len(stdout) > 0 && stdout[len(stdout)-1] != '\n' && stdout[len(stdout)-1] != '\r' && strings.Contains(s, ": ") {
-		return nil, fmt.Errorf("error message from ruff does not end with \\n nor \\r\\n while checking script at %s. output: %q", pos, stdout)
+	for _, e := range entries {
+		for _, d := range e.Diagnostics {
+			code := d.Code
+			if code == "" {
+				code = "ruff"
+			}
+			// Include ruff code and its position inside the message, keep pos as the YAML location
+			msg := strings.TrimSpace(d.Message)
+			rule.mu.Lock()
+			rule.Errorf(pos, "ruff reported issue in this script (%s): %d:%d: %s", code, d.Start.Line, d.Start.Column, msg)
+			rule.mu.Unlock()
+		}
 	}
 
-	if !strings.Contains(s, ": ") {
-		return b, nil
-	}
-	parts := strings.SplitN(s, ": ", 2)
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("error message from ruff does not contain colon separator while checking script at %s. output: %q", pos, stdout)
-	}
-
-	loc := parts[0]
-	msg := strings.TrimSpace(parts[1])
-	locParts := strings.Split(loc, ":")
-	if len(locParts) < 3 {
-		return nil, fmt.Errorf("error message from ruff does not contain location information while checking script at %s. output: %q", pos, stdout)
-	}
-	lineStr := strings.TrimSpace(locParts[len(locParts)-2])
-	colStr := strings.TrimSpace(locParts[len(locParts)-1])
-
-	code := ""
-	prefix := msg
-	if sp := strings.Fields(msg); len(sp) > 0 {
-		code = sp[0]
-		prefix = strings.TrimSpace(strings.TrimPrefix(msg, code))
-	}
-	if code == "" {
-		code = "ruff"
-	}
-
-	message := strings.TrimSpace(prefix)
-	if message == "" {
-		message = msg
-	}
-
-	rule.mu.Lock()
-	rule.Errorf(pos, "ruff reported issue in this script (%s): %s:%s: %s", code, lineStr, colStr, message)
-	rule.mu.Unlock()
-
-	return b, nil
+	return nil
 }
