@@ -127,6 +127,7 @@ func (cmd *Command) Main(args []string) int {
 	var ver bool
 	var opts LinterOptions
 	var ignorePats ignorePatternFlags
+	var ruffArgFlags ignorePatternFlags
 	var initConfig bool
 	var noColor bool
 	var color bool
@@ -136,6 +137,9 @@ func (cmd *Command) Main(args []string) int {
 	flags.Var(&ignorePats, "ignore", "Regular expression matching to error messages you want to ignore. This flag is repeatable")
 	flags.StringVar(&opts.Shellcheck, "shellcheck", "shellcheck", "Command name or file path of \"shellcheck\" external command. If empty, shellcheck integration will be disabled")
 	flags.StringVar(&opts.Pyflakes, "pyflakes", "pyflakes", "Command name or file path of \"pyflakes\" external command. If empty, pyflakes integration will be disabled")
+	flags.StringVar(&opts.Ruff, "ruff", "", "Command name or file path of \"ruff\" external command. If empty, ruff integration will be disabled")
+	flags.Var(&ruffArgFlags, "ruff-arg", "Extra argument to pass to ruff. This flag is repeatable")
+	flags.StringVar(&opts.RuffConfig, "ruff-config", "", "Path to ruff configuration file. When set, --config <file> is passed to ruff")
 	flags.BoolVar(&opts.Oneline, "oneline", false, "Use one line per one error. Useful for reading error messages from programs")
 	flags.StringVar(&opts.Format, "format", "", "Custom template to format error messages in Go template syntax. See the usage documentation for more details")
 	flags.StringVar(&opts.ConfigFile, "config-file", "", "File path to config file")
@@ -173,6 +177,10 @@ func (cmd *Command) Main(args []string) int {
 
 	opts.IgnorePatterns = ignorePats
 	opts.LogWriter = cmd.Stderr
+	// copy ruff arg flags into opts.RuffArgs
+	for _, a := range ruffArgFlags {
+		opts.RuffArgs = append(opts.RuffArgs, a)
+	}
 
 	if color {
 		opts.Color = ColorOptionKindAlways

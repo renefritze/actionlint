@@ -34,9 +34,9 @@ The regular expression syntax is the same as [RE2][re2].
 actionlint -ignore 'label ".+" is unknown' -ignore '".+" is potentially untrusted'
 ```
 
-`-shellcheck` and `-pyflakes` specifies file paths of executables. Setting empty string to them disables `shellcheck` and
-`pyflakes` rules. As a bonus, disabling them makes actionlint much faster Since these external linter integrations spawn many
-processes.
+`-shellcheck`, `-pyflakes`, and `-ruff` specify file paths of executables. Setting empty string to them disables the
+integration. By default, actionlint runs pyflakes. When `-ruff` is set to a non-empty value, actionlint uses ruff instead.
+Disabling both integrations makes actionlint much faster since these external linter integrations spawn many processes.
 
 ```sh
 actionlint -shellcheck= -pyflakes=
